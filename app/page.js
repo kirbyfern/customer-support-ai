@@ -1,148 +1,193 @@
-'use client'
+'use client';
 
-import { Box, Button, Stack, TextField } from '@mui/material'
-import { useState } from 'react'
+import { Stack, Box, TextField, Typography, Button, Rating } from "@mui/material";
+import { useState, useEffect, useRef } from "react";
 
 export default function Home() {
   const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: "Hi! I'm the EcoCharge support assistant. How can I help you today?",
-    },
-  ])
-  const [message, setMessage] = useState('')
-  // Loading state and ability to send message by pressing Enter
-  const [isLoading, setIsLoading] = useState(false)
+    { role: "assistant", content: "Welcome to EcoCharge Customer Support! How can I assist you today?" },
+  ]);
+  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const messagesEndRef = useRef(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  // sendMessage Function
+  const parseBoldText = (text) => {
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    return text.replace(boldRegex, "<strong>$1</strong>");
+  };
+
   const sendMessage = async () => {
-    if (!message.trim() || isLoading) return;
-    setIsLoading(true)
-  
-    setMessage('')
+    setMessage('')  // Clear the input field
     setMessages((messages) => [
       ...messages,
-      { role: 'user', content: message },
-      { role: 'assistant', content: '' },
+      { role: 'user', content: message },  // Add the user's message to the chat
+      { role: 'assistant', content: '' },  // Add a placeholder for the assistant's response
     ])
   
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify([...messages, { role: 'user', content: message }]),
-      })
+    const response = fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([...messages, { role: 'user', content: message }]),
+    }).then(async (res) => {
+      const reader = res.body.getReader()  // Get a reader to read the response body
+      const decoder = new TextDecoder()  // Create a decoder to decode the response text
   
-      if (!response.ok) {
-        throw new Error('Network response was not ok')
-      }
-  
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-  
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        const text = decoder.decode(value, { stream: true })
+      let result = ''
+      return reader.read().then(function processText({ done, value }) {
+        if (done) {
+          return result
+        }
+        const text = decoder.decode(value || new Uint8Array(), { stream: true })  // Decode the text
         setMessages((messages) => {
-          let lastMessage = messages[messages.length - 1]
-          let otherMessages = messages.slice(0, messages.length - 1)
+          let lastMessage = messages[messages.length - 1]  // Get the last message (assistant's placeholder)
+          let otherMessages = messages.slice(0, messages.length - 1)  // Get all other messages
           return [
             ...otherMessages,
-            { ...lastMessage, content: lastMessage.content + text },
+            { ...lastMessage, content: lastMessage.content + text },  // Append the decoded text to the assistant's message
           ]
         })
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      setMessages((messages) => [
-        ...messages,
-        { role: 'assistant', content: "I'm sorry, but I encountered an error. Please try again later." },
-      ])
-    }
-
-    setIsLoading(false)
-  }
-  // end of sendMessage Function
-
-  // Auto scrolling feature
-  const messagesEndRef = useRef(null)
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+        return reader.read().then(processText)  // Continue reading the next chunk of the response
+      })
+    })
   }
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const handleMouseMove = (event) => {
+      setMousePosition({
+        x: event.clientX / window.innerWidth,
+        y: event.clientY / window.innerHeight
+      });
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  const backgroundStyle = {
+    background: `radial-gradient(circle at ${mousePosition.x * 100}% ${mousePosition.y * 100}%, #1e1e1e, #0d0d0d)`,
+    transition: 'background 0.1s ease'
+  };
 
   return (
     <Box
-      width="100vw"
-      height="100vh"
       display="flex"
       flexDirection="column"
       justifyContent="center"
       alignItems="center"
+      height="100vh"
+      width="100vw"
+      padding={2}
+      sx={backgroundStyle}
     >
       <Stack
-        direction={'column'}
-        width="500px"
-        height="700px"
-        border="1px solid black"
-        p={2}
-        spacing={3}
+        spacing={2}
+        direction="column"
+        justifyContent="center"
+        alignItems="center"
+        sx={{
+          width: { xs: '90%', sm: '75%', md: '50%', lg: '500px' },
+          height: { xs: '80%', md: '700px' },
+          border: 1,
+          borderRadius: 2,
+          boxShadow: 3,
+          bgcolor: "#2c2c2c",
+        }}
       >
-        <Stack
-          direction={'column'}
-          spacing={2}
+        <Box
           flexGrow={1}
+          width="100%"
           overflow="auto"
-          maxHeight="100%"
+          display="flex"
+          flexDirection="column"
+          padding={2}
+          bgcolor="#2c2c2c"
         >
-          {messages.map((message, index) => (
+          {messages.map((msg, index) => (
             <Box
               key={index}
               display="flex"
-              justifyContent={
-                message.role === 'assistant' ? 'flex-start' : 'flex-end'
-              }
+              justifyContent={msg.role === "assistant" ? "flex-start" : "flex-end"}
+              width="100%"
+              padding={1}
             >
               <Box
-                bgcolor={
-                  message.role === 'assistant'
-                    ? 'primary.main'
-                    : 'secondary.main'
-                }
+                bgcolor={msg.role === "assistant" ? "#00bcd4" : "#424242"}
                 color="white"
-                borderRadius={16}
-                p={3}
+                borderRadius={2}
+                padding={1.5}
+                maxWidth="75%"
+                boxShadow={2}
               >
-                {message.content}
+                <Typography dangerouslySetInnerHTML={{ __html: parseBoldText(msg.content) }}/>
               </Box>
             </Box>
           ))}
-        </Stack>
-        <Stack direction={'row'} spacing={2}>
+          <div ref={messagesEndRef} />
+        </Box>
+        <Stack spacing={2} direction="row" width="100%" padding={1}>
           <TextField
-            label="Message"
+            label="Type a message"
+            variant="outlined"
             fullWidth
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isLoading}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                sendMessage();
+              }
+            }}
+            InputProps={{
+              style: {
+                color: 'white',
+                borderColor: '#424242'
+              }
+            }}
+            InputLabelProps={{
+              style: { color: '#aaa' }
+            }}
           />
-          <Button 
+          <Button
             variant="contained"
+            color="primary"
             onClick={sendMessage}
-            disabled={isLoading}
+            sx={{ backgroundColor: '#00bcd4', fontFamily: 'poppins' }}
           >
-            {isLoading? 'Sending...' : 'Send'}
+            Send
           </Button>
         </Stack>
       </Stack>
+
+      {/* Feedback Section */}
+      <Box
+        display="flex"
+        flexDirection="column"
+        justifyContent="center"
+        alignItems="center"
+        width="100%"
+        marginTop={2}
+      >
+        <Typography variant="h6" color="white" sx={{fontFamily: "poppins"}}>Rate Customer Support Help:</Typography>
+        <Rating
+          name="rating"
+          value={feedback}
+          onChange={(_, newValue) => setFeedback(newValue)}
+          sx={{ color: 'cyan' }}
+        />
+        {feedback && (
+          <Typography variant="body2" color="white" my={2}>
+            Thank you for your feedback!
+          </Typography>
+        )}
+      </Box>
     </Box>
-  )
+  );
 }
