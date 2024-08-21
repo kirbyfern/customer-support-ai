@@ -67,6 +67,16 @@ export default function Home() {
   }
   // end of sendMessage Function
 
+  // Auto scrolling feature
+  const messagesEndRef = useRef(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
   return (
     <Box
